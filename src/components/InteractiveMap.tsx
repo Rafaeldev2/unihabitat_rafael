@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
+import { isPlaceholderMapUrl } from "@/lib/map-default";
 
 function extractCoordsFromUrl(url?: string | null): { lat: number; lng: number } | null {
   if (!url) return null;
@@ -29,7 +30,13 @@ interface InteractiveMapProps {
 }
 
 export function InteractiveMap({ lat: rawLat, lng: rawLng, mapImageUrl, label, className = "" }: InteractiveMapProps) {
-  const fromUrl = extractCoordsFromUrl(mapImageUrl);
+  /** Nunca extraer el centro de una URL "España/Madrid" (placeholder): eso fijaba Malina en el primer paint. */
+  const fromUrl =
+    rawLat != null && rawLng != null
+      ? null
+      : mapImageUrl && !isPlaceholderMapUrl(mapImageUrl)
+        ? extractCoordsFromUrl(mapImageUrl)
+        : null;
   const lat = rawLat ?? fromUrl?.lat ?? null;
   const lng = rawLng ?? fromUrl?.lng ?? null;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,7 +54,6 @@ export function InteractiveMap({ lat: rawLat, lng: rawLng, mapImageUrl, label, c
     (async () => {
       try {
         const L = (await import("leaflet")).default;
-        // @ts-expect-error CSS import handled by bundler
         await import("leaflet/dist/leaflet.css");
 
         if (cancelled || !containerRef.current) return;
@@ -100,8 +106,19 @@ export function InteractiveMap({ lat: rawLat, lng: rawLng, mapImageUrl, label, c
   }, [lat, lng, label, hasCoords]);
 
   if (!hasCoords) {
-    if (mapImageUrl && mapImageUrl.trim()) {
-      return <img src={mapImageUrl} alt={label ?? "Mapa"} className={className} />;
+    const m = mapImageUrl?.trim() ?? "";
+    if (m && !isPlaceholderMapUrl(m)) {
+      return <img src={m} alt={label ?? "Mapa"} className={className} />;
+    }
+    if (m && isPlaceholderMapUrl(m)) {
+      return (
+        <div className={`flex items-center justify-center bg-gradient-to-br from-cream to-cream2 ${className}`}>
+          <div className="flex flex-col items-center gap-2 text-muted/50">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-gold border-t-transparent" />
+            <span className="text-[10px] font-medium">Cargando mapa…</span>
+          </div>
+        </div>
+      );
     }
     return (
       <div className={`flex items-center justify-center bg-gradient-to-br from-cream to-cream2 ${className}`}>

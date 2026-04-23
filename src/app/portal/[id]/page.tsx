@@ -14,7 +14,6 @@ import { createOferta } from "@/app/actions/ofertas";
 import { fetchCompradorByEmail, ensureCompradorForEmail } from "@/app/actions/compradores";
 import { usePortalAuth } from "@/hooks/usePortalAuth";
 import { InteractiveMap } from "@/components/InteractiveMap";
-import { AssetMapImage } from "@/components/AssetMapImage";
 
 const BASE_SECTION_IDS = [
   "descripcion",
@@ -253,10 +252,11 @@ export default function PortalDetailPage({ params }: { params: Promise<{ id: str
                         href={`/portal/${s.id}`}
                         className="group flex gap-4 rounded-lg border border-border p-3 transition-all hover:border-gold/40 hover:shadow-sm"
                       >
-                        <AssetMapImage
-                          src={s.map}
-                          alt={s.pob}
-                          className="h-[80px] w-[120px] shrink-0 rounded-md object-cover"
+                        <InteractiveMap
+                          lat={s.lat}
+                          lng={s.lng}
+                          mapImageUrl={s.map}
+                          className="h-[80px] w-[120px] shrink-0 rounded-md"
                         />
                         <div className="flex min-w-0 flex-1 flex-col justify-center">
                           <div className="text-sm font-semibold text-navy group-hover:text-gold">

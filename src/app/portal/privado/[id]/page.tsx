@@ -6,7 +6,7 @@ import type { Asset } from "@/lib/types";
 import { fmt, fmtM } from "@/lib/utils";
 import Link from "next/link";
 import { ArrowLeft, FileText, MessageSquare, FolderOpen } from "lucide-react";
-import { AssetMapImage } from "@/components/AssetMapImage";
+import { InteractiveMap } from "@/components/InteractiveMap";
 
 export default function PortalPrivadoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -36,10 +36,12 @@ export default function PortalPrivadoDetailPage({ params }: { params: Promise<{ 
       {tab === "info" && (
         <div className="grid grid-cols-[1fr_280px] gap-6">
           <div>
-            <AssetMapImage
-              src={asset.map}
-              alt={asset.pob}
-              className="mb-5 h-[260px] w-full rounded-xl border border-border object-cover"
+            <InteractiveMap
+              lat={asset.lat}
+              lng={asset.lng}
+              mapImageUrl={asset.map}
+              label={asset.pob && asset.pob !== "—" ? asset.pob : undefined}
+              className="mb-5 h-[260px] w-full rounded-xl border border-border"
             />
             <div className="rounded-lg border border-border bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[1.5px] text-gold after:h-px after:flex-1 after:bg-border">Informacion completa</div>

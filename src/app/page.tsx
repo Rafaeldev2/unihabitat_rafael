@@ -79,8 +79,8 @@ export default function HomePage() {
       <header className="fixed inset-x-0 top-0 z-50 border-b border-black/5 bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-navy">
-              <Building2 size={16} className="text-gold" />
+            <div className="flex h-8 w-8 items-center justify-center">
+            <img src="/logoAzul.svg" alt="Unihabitat" width={28} height={28} className="h-7 w-auto" />
             </div>
             <span className="text-lg font-bold text-navy tracking-tight">Unihabitat<span className="text-gold">*</span></span>
           </Link>

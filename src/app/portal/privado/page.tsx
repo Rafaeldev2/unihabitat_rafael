@@ -7,9 +7,10 @@ import { fetchInvitedAssetIds } from "@/app/actions/invitations";
 import { signOut } from "@/app/login/actions";
 import type { Asset } from "@/lib/types";
 import { fmt, fmtM, shortAddr } from "@/lib/utils";
+import { shouldBackfillMapFromAddress } from "@/lib/map-default";
 import Link from "next/link";
 import { Building, MapPin, LogIn, LogOut, FileText, Star } from "lucide-react";
-import { AssetMapImage } from "@/components/AssetMapImage";
+import { InteractiveMap } from "@/components/InteractiveMap";
 
 export default function PortalPrivadoPage() {
   const [publicAssets, setPublicAssets] = useState<Asset[]>([]);
@@ -32,17 +33,31 @@ export default function PortalPrivadoPage() {
       } catch { /* ignore */ }
     }
 
-    const loadPublic = fetchPublicAssets().then((data) => {
-      setPublicAssets(data);
-      const needMap = data.filter(a => !a.map || !a.map.trim() || a.map.includes("staticmap.openstreetmap.de"));
+    const loadPublic = (async () => {
+      const data = await fetchPublicAssets();
+      const needMap = data.filter((a) => shouldBackfillMapFromAddress(a));
+      let next = data;
       if (needMap.length > 0) {
-        const stubs = needMap.map(a => ({ id: a.id, addr: a.addr, pob: a.pob, prov: a.prov, cp: a.cp }));
-        backfillMissingMaps(stubs).then(urls => {
-          if (Object.keys(urls).length === 0) return;
-          setPublicAssets(prev => prev.map(a => urls[a.id] ? { ...a, map: urls[a.id] } : a));
-        }).catch(() => {});
+        const stubs = needMap.map((a) => ({
+          id: a.id,
+          addr: a.addr,
+          pob: a.pob,
+          prov: a.prov,
+          cp: a.cp,
+        }));
+        try {
+          const hits = await backfillMissingMaps(stubs);
+          next = data.map((a) => {
+            const h = hits[a.id];
+            if (!h) return a;
+            return { ...a, map: h.map, lat: h.lat, lng: h.lng };
+          });
+        } catch {
+          /* mantener data inicial */
+        }
       }
-    });
+      setPublicAssets(next);
+    })();
 
     const loadInvited = cid
       ? fetchInvitedAssetIds(cid).then(async (ids) => {
@@ -83,10 +98,12 @@ export default function PortalPrivadoPage() {
   const AssetCard = ({ a, badge }: { a: Asset; badge?: string }) => (
     <Link href={`/portal/privado/${a.id}`} className="group overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all hover:shadow-md">
       <div className="relative">
-        <AssetMapImage
-          src={a.map}
-          alt={a.pob}
-          className="h-[160px] w-full object-cover transition-transform group-hover:scale-[1.02]"
+        <InteractiveMap
+          lat={a.lat}
+          lng={a.lng}
+          mapImageUrl={a.map}
+          label={a.pob && a.pob !== "—" ? a.pob : undefined}
+          className="h-[160px] w-full transition-transform group-hover:scale-[1.02]"
         />
         {badge && (
           <span className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-gold/90 px-2 py-0.5 text-[10px] font-semibold text-white">

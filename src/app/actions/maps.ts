@@ -18,13 +18,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
+export type BackfillMapHit = { map: string; lat: number; lng: number };
+
 /**
- * Geocodes assets that lack a map URL and persists the generated static-map URLs in Supabase.
- * Returns a map of assetId → mapUrl for the caller to merge into client state.
+ * Geocodifica activos y persiste `map` + `lat`/`lng` en Supabase.
+ * Devuelve `map` y coordenadas para fusionar en el estado del cliente (sin depender de parsear la URL).
  */
 export async function backfillMissingMaps(
   stubs: AssetStub[],
-): Promise<Record<string, string>> {
+): Promise<Record<string, BackfillMapHit>> {
   if (stubs.length === 0) return {};
 
   const geoResults: Record<string, { url: string; lat: number; lng: number }> = {};
@@ -69,9 +71,9 @@ export async function backfillMissingMaps(
     }
   }
 
-  const results: Record<string, string> = {};
+  const results: Record<string, BackfillMapHit> = {};
   for (const [id, hit] of Object.entries(geoResults)) {
-    results[id] = hit.url;
+    results[id] = { map: hit.url, lat: hit.lat, lng: hit.lng };
   }
   return results;
 }

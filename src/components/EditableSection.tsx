@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Save, Loader2, CheckCircle2 } from "lucide-react";
 import { updateAssetFields } from "@/app/actions/assets";
+import { parseLocaleMoneyInput } from "@/lib/utils";
 
 export type FieldDef = {
   label: string;
@@ -10,6 +11,8 @@ export type FieldDef = {
   value: string;
   mono?: boolean;
   colSpan?: number;
+  /** `precio` y otras columnas numéricas: guardar número o `null`, no "—" */
+  numeric?: boolean;
 };
 
 interface EditableSectionProps {
@@ -33,15 +36,31 @@ export function EditableSection({ title, assetId, fields, cols = 4, onSaved }: E
   useEffect(() => {
     const init: Record<string, string> = {};
     for (const f of fields) {
-      init[f.dbCol] = f.value === "—" ? "" : f.value;
+      if (f.numeric) {
+        init[f.dbCol] = f.value === "—" || f.value == null || f.value === "" ? "" : f.value;
+      } else {
+        init[f.dbCol] = f.value === "—" ? "" : f.value;
+      }
     }
     initial.current = init;
     setValues(init);
   }, [fields]);
 
-  const dirty = Object.keys(values).some(
-    k => (values[k] ?? "") !== (initial.current[k] ?? ""),
-  );
+  const fieldMeta = (dbCol: string) => fields.find(f => f.dbCol === dbCol);
+
+  const dirty = Object.keys(values).some((k) => {
+    const next = values[k] ?? "";
+    const prev = initial.current[k] ?? "";
+    const f = fieldMeta(k);
+    if (f?.numeric) {
+      const a = parseLocaleMoneyInput(next);
+      const b = parseLocaleMoneyInput(prev);
+      if (a == null && b == null) return false;
+      if (a == null || b == null) return true;
+      return Math.abs(a - b) > 1e-9;
+    }
+    return next !== prev;
+  });
 
   const handleChange = useCallback((dbCol: string, v: string) => {
     setValues(prev => ({ ...prev, [dbCol]: v }));
@@ -50,10 +69,22 @@ export function EditableSection({ title, assetId, fields, cols = 4, onSaved }: E
   const handleSave = async () => {
     setSaving(true);
     try {
-      const patch: Record<string, string | null> = {};
+      const patch: Record<string, string | number | null> = {};
       for (const [k, v] of Object.entries(values)) {
-        if ((v ?? "") !== (initial.current[k] ?? "")) {
-          patch[k] = v.trim() || "—";
+        const prev = initial.current[k] ?? "";
+        const next = v ?? "";
+        if (next === prev) continue;
+        const f = fieldMeta(k);
+        if (f?.numeric) {
+          const n = parseLocaleMoneyInput(next);
+          const prevN = parseLocaleMoneyInput(prev);
+          const changed =
+            (n == null && prevN != null) ||
+            (n != null && prevN == null) ||
+            (n != null && prevN != null && Math.abs(n - prevN) > 1e-9);
+          if (changed) patch[k] = n;
+        } else {
+          patch[k] = next.trim() || "—";
         }
       }
       if (Object.keys(patch).length > 0) {
@@ -83,6 +114,7 @@ export function EditableSection({ title, assetId, fields, cols = 4, onSaved }: E
               value={values[f.dbCol] ?? ""}
               onChange={e => handleChange(f.dbCol, e.target.value)}
               placeholder="—"
+              inputMode={f.numeric ? "decimal" : undefined}
               className={f.mono ? monoInputCls : inputCls}
             />
           </div>

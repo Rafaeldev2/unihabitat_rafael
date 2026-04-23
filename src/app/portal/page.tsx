@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Suspense } from "react";
 import { FilterSelect } from "@/components/FilterSelect";
-import { AssetMapImage } from "@/components/AssetMapImage";
+import { InteractiveMap } from "@/components/InteractiveMap";
 import { usePortalAuth } from "@/hooks/usePortalAuth";
 
 type SortKey = "none" | "price_asc" | "price_desc" | "sqm_asc" | "sqm_desc" | "pob_az";
@@ -234,10 +234,12 @@ function PortalContent() {
             >
               {/* Image + badges */}
               <div className="relative">
-                <AssetMapImage
-                  src={a.map}
-                  alt={a.pob}
-                  className="h-[180px] w-full object-cover transition-transform group-hover:scale-[1.02]"
+                <InteractiveMap
+                  lat={a.lat}
+                  lng={a.lng}
+                  mapImageUrl={a.map}
+                  label={a.pob && a.pob !== "—" ? a.pob : undefined}
+                  className="h-[180px] w-full transition-transform group-hover:scale-[1.02]"
                 />
                 {/* NPL / REO badge */}
                 <div className="absolute left-3 top-3 flex gap-1.5">

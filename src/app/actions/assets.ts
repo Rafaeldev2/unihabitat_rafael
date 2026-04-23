@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { rowToAsset, assetToRow, mergeExcelRawMaps } from "@/lib/supabase/db";
 import type { Asset } from "@/lib/types";
+import { buildStaticMapUrl } from "@/lib/catastro/geoapify";
 import { requireAdmin, requireAdminOrVendor, requireEditPermission, requireAssetAccess } from "@/lib/auth-server";
 
 /** Lectura completa para el panel admin (login demo sin JWT Supabase: el anon no pasa RLS). */
@@ -154,6 +155,35 @@ function mergeRowPreferNonEmpty(existing: Record<string, any>, incoming: Record<
   return merged;
 }
 
+/** Mismo tipo de URL que se genera en `parseEnriquecido` (mapa, no imagen de propiedad). */
+function isProviderStaticMapUrl(m: string): boolean {
+  const u = m.toLowerCase();
+  return u.includes("maps.geoapify.com") || u.includes("staticmap.openstreetmap.de");
+}
+
+/** Sincroniza `map` con `lat`/`lng` tras el merge (misma lógica que hoja Enriquecido + Geoapify). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyMapFromLatLng(row: Record<string, any>): void {
+  const lat = row.lat;
+  const lng = row.lng;
+  if (lat == null || lng == null) return;
+  const la = typeof lat === "number" ? lat : parseFloat(String(lat));
+  const lo = typeof lng === "number" ? lng : parseFloat(String(lng));
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return;
+  const current = String(row.map ?? "").trim();
+  if (current && !isProviderStaticMapUrl(current)) {
+    return;
+  }
+  const geo = buildStaticMapUrl(String(lo), String(la));
+  if (geo) {
+    row.map = geo;
+    return;
+  }
+  row.map =
+    `https://staticmap.openstreetmap.de/staticmap?center=${encodeURIComponent(String(la))},${encodeURIComponent(String(lo))}` +
+    `&zoom=15&size=600x400`;
+}
+
 export async function upsertAssets(assets: Asset[]): Promise<{ inserted: number; updated: number; errors: string[] }> {
   await requireAdmin();
   const supabase = await createServiceClient();
@@ -183,7 +213,9 @@ export async function upsertAssets(assets: Asset[]): Promise<{ inserted: number;
     const rows = batch.map(a => {
       const incoming = assetToRow(a);
       const existing = existingMap.get(a.id);
-      return existing ? mergeRowPreferNonEmpty(existing, incoming) : incoming;
+      const merged = existing ? mergeRowPreferNonEmpty(existing, incoming) : incoming;
+      applyMapFromLatLng(merged);
+      return merged;
     });
 
     const { error: upsertErr } = await supabase
@@ -229,7 +261,7 @@ export async function toggleAssetPub(id: string): Promise<boolean> {
 
 export async function updateAssetFields(
   id: string,
-  fields: Record<string, string | null>
+  fields: Record<string, string | number | null>
 ): Promise<void> {
   if (Object.keys(fields).length === 0) return;
   const session = await requireEditPermission("activos");

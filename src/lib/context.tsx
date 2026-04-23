@@ -6,6 +6,7 @@ import type { VendorPermission, UserSession } from "./permissions";
 import { assets as initialAssets, compradores as initialComp, vendedores as initialVend, tareasData } from "./mock-data";
 import { fetchAssets } from "@/app/actions/assets";
 import { backfillMissingMaps } from "@/app/actions/maps";
+import { shouldBackfillMapFromAddress } from "@/lib/map-default";
 import { getDevAuthFromDocument } from "@/lib/auth-helpers";
 import { fetchVendorPermissions, fetchVendorAssignedAssetIds, fetchVendorAssignedCompradorIds } from "@/app/actions/permissions";
 
@@ -62,24 +63,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const rows = await fetchAssets();
         if (cancelled || rows.length === 0) return;
-        setState((prev) => ({ ...prev, assets: rows }));
-
-        // backfillMissingMaps se ejecuta solo si hay clave Geoapify configurada y
-        // hay pocos activos sin mapa (evitar miles de invocaciones en cargas masivas).
+        // backfillMissingMaps: misma lógica que /portal/privado — un solo setState
+        // con map + lat + lng (evita parpadeo Madrid → ciudad correcta).
         const GEOAPIFY_KEY = process.env.NEXT_PUBLIC_GEOAPIFY_KEY;
-        const needMap = GEOAPIFY_KEY
-          ? rows.filter(a => !a.map || !a.map.trim() || a.map.includes("staticmap.openstreetmap.de"))
-          : [];
-        if (needMap.length > 0 && needMap.length <= 200) {
-          const stubs = needMap.map(a => ({ id: a.id, addr: a.addr, pob: a.pob, prov: a.prov, cp: a.cp }));
-          backfillMissingMaps(stubs).then(urls => {
-            if (cancelled || Object.keys(urls).length === 0) return;
-            setState(prev => ({
-              ...prev,
-              assets: prev.assets.map(a => urls[a.id] ? { ...a, map: urls[a.id] } : a),
+        let nextAssets = rows;
+        if (GEOAPIFY_KEY) {
+          const needMap = rows.filter((a) => shouldBackfillMapFromAddress(a));
+          if (needMap.length > 0 && needMap.length <= 200) {
+            const stubs = needMap.map((a) => ({
+              id: a.id,
+              addr: a.addr,
+              pob: a.pob,
+              prov: a.prov,
+              cp: a.cp,
             }));
-          }).catch(() => {});
+            try {
+              const hits = await backfillMissingMaps(stubs);
+              nextAssets = rows.map((a) => {
+                const h = hits[a.id];
+                if (!h) return a;
+                return { ...a, map: h.map, lat: h.lat, lng: h.lng };
+              });
+            } catch { /* quedan rows */ }
+          }
         }
+        if (cancelled) return;
+        setState((prev) => ({ ...prev, assets: nextAssets }));
       } catch { /* keep mocks */ }
     })();
 

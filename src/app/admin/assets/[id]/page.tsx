@@ -1,8 +1,7 @@
 "use client";
 
-import { use, useState, useEffect, useRef, useCallback } from "react";
+import { use, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useApp } from "@/lib/context";
-import { fmt } from "@/lib/utils";
 import { assetNotes, assetDocs, docNotes, adminNotes, chatMessages } from "@/lib/mock-data";
 import Link from "next/link";
 import type { Asset, NoteEntry, DocItem, ChatMessage } from "@/lib/types";
@@ -14,7 +13,7 @@ import { fetchAssetByIdForAdmin, toggleAssetPub, updateAssetFields } from "@/app
 import { inviteCompradorToAsset, revokeCompradorFromAsset, fetchInvitedCompradores } from "@/app/actions/invitations";
 import { refreshAssetCatastro } from "@/app/actions/catastro";
 import type { Comprador } from "@/lib/types";
-import { AssetMapImage } from "@/components/AssetMapImage";
+import { InteractiveMap } from "@/components/InteractiveMap";
 import { EditableSection, type FieldDef } from "@/components/EditableSection";
 import { EditableExcelRawSection } from "@/components/EditableExcelRawSection";
 import { listEmptyExcelFields } from "@/lib/excel-raw-utils";
@@ -308,6 +307,18 @@ function TabCaracteristicas({ asset, assetId, currentUser, reloadAsset }: { asse
 
   const hasCatRef = asset.catRef && asset.catRef !== "—";
 
+  const precioFields: FieldDef[] = useMemo(
+    () => [
+      {
+        label: "Precio estimado (€)",
+        dbCol: "precio",
+        value: asset.precio != null ? String(asset.precio) : "—",
+        numeric: true,
+      },
+    ],
+    [asset.precio],
+  );
+
   const handleRefreshCatastro = async (force?: boolean) => {
     setCatastroRefreshing(true);
     setCatastroMsg(null);
@@ -359,10 +370,12 @@ function TabCaracteristicas({ asset, assetId, currentUser, reloadAsset }: { asse
           <EditableSection title="Localización" assetId={assetId} fields={locFields} cols={4} onSaved={reloadAsset} />
         </div>
         <div className="flex flex-col gap-3">
-          <AssetMapImage
-            src={asset.map}
-            alt="Mapa"
-            className="h-[260px] w-[260px] rounded-lg border border-border object-cover"
+          <InteractiveMap
+            lat={asset.lat}
+            lng={asset.lng}
+            mapImageUrl={asset.map}
+            className="h-[260px] w-[260px] rounded-lg border border-border"
+            label={asset.pob && asset.pob !== "—" ? asset.pob : undefined}
           />
           {hasCatRef && (
             <div className="flex flex-col gap-1.5">
@@ -392,12 +405,11 @@ function TabCaracteristicas({ asset, assetId, currentUser, reloadAsset }: { asse
               )}
             </div>
           )}
-          <div className="rounded-lg border border-border bg-white p-5 shadow-sm">
-            <div className="mb-1 text-2xl font-bold text-navy">{fmt(asset.precio)}</div>
-            <div className="mb-4 text-[11px] text-muted">Precio estimado</div>
+          <div className="flex flex-col gap-2">
+            <EditableSection title="Precio" assetId={assetId} fields={precioFields} cols={1} onSaved={reloadAsset} />
             <div className="grid grid-cols-2 gap-2">
-              <button className="flex items-center justify-center gap-1.5 rounded-lg border border-border py-2.5 text-xs font-medium text-navy hover:bg-cream"><MessageSquare size={13} /> Consultar</button>
-              <button className="flex items-center justify-center gap-1.5 rounded-lg bg-gold py-2.5 text-xs font-medium text-white hover:bg-gold2"><FileText size={13} /> Oferta</button>
+              <button type="button" className="flex items-center justify-center gap-1.5 rounded-lg border border-border py-2.5 text-xs font-medium text-navy hover:bg-cream"><MessageSquare size={13} /> Consultar</button>
+              <button type="button" className="flex items-center justify-center gap-1.5 rounded-lg bg-gold py-2.5 text-xs font-medium text-white hover:bg-gold2"><FileText size={13} /> Oferta</button>
             </div>
           </div>
         </div>
